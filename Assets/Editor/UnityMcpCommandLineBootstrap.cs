@@ -39,13 +39,15 @@ public static class UnityMcpCommandLineBootstrap
             if (EditorApplication.timeSinceStartup - startTime < WaitSecondsBeforeStart)
                 return;
             EditorApplication.update -= OnUpdate;
-            DoStartMCP();
+            // 不在 update 回调里执行 DoStartMCP，否则会触发 "Hold on / Waiting for user code" 白框
+            EditorApplication.delayCall += DoStartMCP;
         }
         EditorApplication.update += OnUpdate;
     }
 
     static void DoStartMCP()
     {
+        EditorApplication.delayCall -= DoStartMCP;
         var config = EditorConfigurationCache.Instance;
         config.SetUseHttpTransport(true);
         config.SetHttpTransportScope("local");
@@ -64,14 +66,20 @@ public static class UnityMcpCommandLineBootstrap
             if (EditorApplication.timeSinceStartup - bridgeStartTime < WaitSecondsBeforeBridge)
                 return;
             EditorApplication.update -= OnUpdateBridge;
-
-            bool bridgeStarted = MCPServiceLocator.Bridge.StartAsync().GetAwaiter().GetResult();
-            if (!bridgeStarted)
-                UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
-            else
-                UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
+            // 不在 update 回调里阻塞等 Bridge，否则会卡 "Hold on / Waiting for user code"
+            EditorApplication.delayCall += DoStartBridge;
         }
         EditorApplication.update += OnUpdateBridge;
+    }
+
+    static void DoStartBridge()
+    {
+        EditorApplication.delayCall -= DoStartBridge;
+        bool bridgeStarted = MCPServiceLocator.Bridge.StartAsync().GetAwaiter().GetResult();
+        if (!bridgeStarted)
+            UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
+        else
+            UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
     }
 
     static bool StartLocalHttpServerHeadless()
