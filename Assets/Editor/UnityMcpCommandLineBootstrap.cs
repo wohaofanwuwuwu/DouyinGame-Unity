@@ -14,8 +14,8 @@ public static class UnityMcpCommandLineBootstrap
     const string BaseUrl = "http://localhost:9080";
     /// <summary>登记后等待多少秒再启动 MCP，避免卡在 "Finish Loading Project" 或启动界面</summary>
     const double WaitSecondsBeforeStart = 10.0;
-    /// <summary>HTTP 进程启动后再等多少秒建 Session</summary>
-    const double WaitSecondsBeforeBridge = 3.0;
+    /// <summary>HTTP 进程启动后最多等多少秒直到可连接再建 Session，避免 "connection fail. Check that the server URL is correct"</summary>
+    const double WaitSecondsBeforeBridge = 15.0;
 
     // 不再用 [InitializeOnLoadMethod]，避免加载阶段执行任何代码导致卡在启动界面。
     // 需要自动启动时请用命令行带 -executeMethod；或打开项目后菜单 Window > MCP for Unity 里点 Start Server。
@@ -57,18 +57,28 @@ public static class UnityMcpCommandLineBootstrap
         bool serverStarted = StartLocalHttpServerHeadless();
         if (!serverStarted && !MCPServiceLocator.Server.IsLocalHttpServerReachable())
         {
-            UnityEngine.Debug.LogError("Failed to start Unity MCP server at " + BaseUrl);
+            UnityEngine.Debug.LogError("MCP-FOR-UNITY: Failed to start server at " + BaseUrl + ". Check that uv/uvx is installed and port " + HttpPort + " is free.");
             return;
         }
 
         double bridgeStartTime = EditorApplication.timeSinceStartup;
         void OnUpdateBridge()
         {
-            if (EditorApplication.timeSinceStartup - bridgeStartTime < WaitSecondsBeforeBridge)
+            double elapsed = EditorApplication.timeSinceStartup - bridgeStartTime;
+            bool reachable = MCPServiceLocator.Server.IsLocalHttpServerReachable();
+            if (reachable)
+            {
+                EditorApplication.update -= OnUpdateBridge;
+                UnityEngine.Debug.Log("MCP HTTP server reachable at " + BaseUrl + ", starting Bridge (session)...");
+                EditorApplication.delayCall += DoStartBridge;
                 return;
-            EditorApplication.update -= OnUpdateBridge;
-            // 不在 update 回调里阻塞等 Bridge，否则会卡 "Hold on / Waiting for user code"
-            EditorApplication.delayCall += DoStartBridge;
+            }
+            if (elapsed >= WaitSecondsBeforeBridge)
+            {
+                EditorApplication.update -= OnUpdateBridge;
+                UnityEngine.Debug.LogError("MCP-FOR-UNITY: connection fail. Server at " + BaseUrl + " did not become reachable within " + WaitSecondsBeforeBridge + "s. Check that the server URL is correct and uvx process is running (e.g. port " + HttpPort + ").");
+                return;
+            }
         }
         EditorApplication.update += OnUpdateBridge;
     }
