@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using MCPForUnity.Editor.Helpers;
 using MCPForUnity.Editor.Services;
 using UnityEditor;
@@ -75,11 +76,27 @@ public static class UnityMcpCommandLineBootstrap
     static void DoStartBridge()
     {
         EditorApplication.delayCall -= DoStartBridge;
-        bool bridgeStarted = MCPServiceLocator.Bridge.StartAsync().GetAwaiter().GetResult();
-        if (!bridgeStarted)
-            UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
-        else
-            UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
+        // 不阻塞主线程：不调用 GetAwaiter().GetResult()，否则会卡白框 "delayCall...DoStartBridge..."
+        MCPServiceLocator.Bridge.StartAsync().ContinueWith(t =>
+        {
+            bool ok = false;
+            if (t.Status == TaskStatus.RanToCompletion)
+            {
+                try { ok = t.Result; } catch { }
+            }
+            else if (t.IsFaulted && t.Exception != null)
+            {
+                UnityEngine.Debug.LogException(t.Exception.InnerException ?? t.Exception);
+            }
+            bool result = ok;
+            EditorApplication.delayCall += () =>
+            {
+                if (!result)
+                    UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
+                else
+                    UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
+            };
+        });
     }
 
     static bool StartLocalHttpServerHeadless()
