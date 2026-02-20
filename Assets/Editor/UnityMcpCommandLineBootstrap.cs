@@ -19,17 +19,8 @@ public static class UnityMcpCommandLineBootstrap
         config.SetHttpTransportScope("local");
         HttpEndpointUtility.SaveLocalBaseUrl(BaseUrl);
 
-        bool serverStarted = false;
-
-        if (Application.isBatchMode)
-        {
-            // 命令行/无界面模式：不弹窗，直接启动 HTTP 进程并建立 Bridge Session
-            serverStarted = StartLocalHttpServerHeadless();
-        }
-        else
-        {
-            serverStarted = MCPServiceLocator.Server.StartLocalHttpServer();
-        }
+        // 始终用无弹窗方式启动 HTTP 服务，不调用会弹 "Start Local HTTP Server" 的 StartLocalHttpServer()
+        bool serverStarted = StartLocalHttpServerHeadless();
 
         // 若本次未成功启动进程，仍检查端口是否已被占用（例如之前已启动），是则继续做 Start Session
         if (!serverStarted && !MCPServiceLocator.Server.IsLocalHttpServerReachable())
@@ -55,7 +46,7 @@ public static class UnityMcpCommandLineBootstrap
     }
 
     /// <summary>
-    /// 无界面模式下启动本地 HTTP 服务（不弹 DisplayDialog，直接起进程）
+    /// 无弹窗启动本地 HTTP 服务（不弹 "Start Local HTTP Server" 对话框，直接起进程）
     /// </summary>
     static bool StartLocalHttpServerHeadless()
     {
@@ -101,7 +92,7 @@ public static class UnityMcpCommandLineBootstrap
         }
         catch (Exception ex)
         {
-            UnityEngine.UnityEngine.Debug.LogException(ex);
+            UnityEngine.Debug.LogException(ex);
             return false;
         }
     }
