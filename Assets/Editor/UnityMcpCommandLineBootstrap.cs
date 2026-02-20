@@ -34,7 +34,7 @@ public static class UnityMcpCommandLineBootstrap
         // 若本次未成功启动进程，仍检查端口是否已被占用（例如之前已启动），是则继续做 Start Session
         if (!serverStarted && !MCPServiceLocator.Server.IsLocalHttpServerReachable())
         {
-            Debug.LogError("Failed to start Unity MCP server at " + BaseUrl);
+            UnityEngine.Debug.LogError("Failed to start Unity MCP server at " + BaseUrl);
             throw new Exception("Unity MCP server start failed.");
         }
 
@@ -46,11 +46,11 @@ public static class UnityMcpCommandLineBootstrap
         bool bridgeStarted = MCPServiceLocator.Bridge.StartAsync().GetAwaiter().GetResult();
         if (!bridgeStarted)
         {
-            Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
+            UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
         }
         else
         {
-            Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
+            UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
         }
     }
 
@@ -61,7 +61,7 @@ public static class UnityMcpCommandLineBootstrap
     {
         if (!MCPServiceLocator.Server.TryGetLocalHttpServerCommand(out string displayCommand, out string error))
         {
-            Debug.LogError("MCP server command not available: " + (error ?? "unknown"));
+            UnityEngine.Debug.LogError("MCP server command not available: " + (error ?? "unknown"));
             return false;
         }
 
@@ -101,7 +101,7 @@ public static class UnityMcpCommandLineBootstrap
         }
         catch (Exception ex)
         {
-            Debug.LogException(ex);
+            UnityEngine.UnityEngine.Debug.LogException(ex);
             return false;
         }
     }
