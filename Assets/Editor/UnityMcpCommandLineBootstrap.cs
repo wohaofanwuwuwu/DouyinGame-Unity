@@ -11,43 +11,75 @@ public static class UnityMcpCommandLineBootstrap
 {
     const int HttpPort = 9080;
     const string BaseUrl = "http://localhost:9080";
+    /// <summary>项目加载完成后等待多少秒再启动 MCP，避免阻塞 "Finish Loading Project"</summary>
+    const double WaitSecondsBeforeStart = 5.0;
+    /// <summary>HTTP 进程启动后再等多少秒建 Session</summary>
+    const double WaitSecondsBeforeBridge = 3.0;
 
+    /// <summary>
+    /// 打开项目后自动在后台启动 MCP，无需 -executeMethod，也不会卡启动页。
+    /// </summary>
+    [InitializeOnLoadMethod]
+    static void AutoStartMCPAfterLoad()
+    {
+        EditorApplication.delayCall += ScheduleMCPStart;
+    }
+
+    /// <summary>
+    /// 供命令行 -executeMethod 调用。只登记延迟启动并立即返回，不阻塞主线程。
+    /// </summary>
     public static void StartUnityMcpServerListening()
+    {
+        EditorApplication.delayCall += ScheduleMCPStart;
+    }
+
+    /// <summary>
+    /// 只做一件事：登记 update 等待，不在此处调用任何 MCP/Server/Bridge，避免卡住加载。
+    /// </summary>
+    static void ScheduleMCPStart()
+    {
+        EditorApplication.delayCall -= ScheduleMCPStart;
+        double startTime = EditorApplication.timeSinceStartup;
+        void OnUpdate()
+        {
+            if (EditorApplication.timeSinceStartup - startTime < WaitSecondsBeforeStart)
+                return;
+            EditorApplication.update -= OnUpdate;
+            DoStartMCP();
+        }
+        EditorApplication.update += OnUpdate;
+    }
+
+    static void DoStartMCP()
     {
         var config = EditorConfigurationCache.Instance;
         config.SetUseHttpTransport(true);
         config.SetHttpTransportScope("local");
         HttpEndpointUtility.SaveLocalBaseUrl(BaseUrl);
 
-        // 始终用无弹窗方式启动 HTTP 服务，不调用会弹 "Start Local HTTP Server" 的 StartLocalHttpServer()
         bool serverStarted = StartLocalHttpServerHeadless();
-
-        // 若本次未成功启动进程，仍检查端口是否已被占用（例如之前已启动），是则继续做 Start Session
         if (!serverStarted && !MCPServiceLocator.Server.IsLocalHttpServerReachable())
         {
             UnityEngine.Debug.LogError("Failed to start Unity MCP server at " + BaseUrl);
-            throw new Exception("Unity MCP server start failed.");
+            return;
         }
 
-        // 等待 HTTP 服务就绪后再建立 Session，避免 Bridge 连不上
-        if (serverStarted)
-            System.Threading.Thread.Sleep(2000);
+        double bridgeStartTime = EditorApplication.timeSinceStartup;
+        void OnUpdateBridge()
+        {
+            if (EditorApplication.timeSinceStartup - bridgeStartTime < WaitSecondsBeforeBridge)
+                return;
+            EditorApplication.update -= OnUpdateBridge;
 
-        // 必须启动 Bridge（= 点击 Start Session），否则 MCP 客户端连上 9080 也看不到 Unity 实例
-        bool bridgeStarted = MCPServiceLocator.Bridge.StartAsync().GetAwaiter().GetResult();
-        if (!bridgeStarted)
-        {
-            UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
+            bool bridgeStarted = MCPServiceLocator.Bridge.StartAsync().GetAwaiter().GetResult();
+            if (!bridgeStarted)
+                UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
+            else
+                UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
         }
-        else
-        {
-            UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
-        }
+        EditorApplication.update += OnUpdateBridge;
     }
 
-    /// <summary>
-    /// 无弹窗启动本地 HTTP 服务（不弹 "Start Local HTTP Server" 对话框，直接起进程）
-    /// </summary>
     static bool StartLocalHttpServerHeadless()
     {
         if (!MCPServiceLocator.Server.TryGetLocalHttpServerCommand(out string displayCommand, out string error))
@@ -87,8 +119,7 @@ public static class UnityMcpCommandLineBootstrap
             }
 
             Process.Start(startInfo);
-            System.Threading.Thread.Sleep(1500);
-            return MCPServiceLocator.Server.IsLocalHttpServerReachable();
+            return true;
         }
         catch (Exception ex)
         {
