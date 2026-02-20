@@ -11,22 +11,16 @@ public static class UnityMcpCommandLineBootstrap
 {
     const int HttpPort = 9080;
     const string BaseUrl = "http://localhost:9080";
-    /// <summary>项目加载完成后等待多少秒再启动 MCP，避免阻塞 "Finish Loading Project"</summary>
-    const double WaitSecondsBeforeStart = 5.0;
+    /// <summary>登记后等待多少秒再启动 MCP，避免卡在 "Finish Loading Project" 或启动界面</summary>
+    const double WaitSecondsBeforeStart = 10.0;
     /// <summary>HTTP 进程启动后再等多少秒建 Session</summary>
     const double WaitSecondsBeforeBridge = 3.0;
 
-    /// <summary>
-    /// 打开项目后自动在后台启动 MCP，无需 -executeMethod，也不会卡启动页。
-    /// </summary>
-    [InitializeOnLoadMethod]
-    static void AutoStartMCPAfterLoad()
-    {
-        EditorApplication.delayCall += ScheduleMCPStart;
-    }
+    // 不再用 [InitializeOnLoadMethod]，避免加载阶段执行任何代码导致卡在启动界面。
+    // 需要自动启动时请用命令行带 -executeMethod；或打开项目后菜单 Window > MCP for Unity 里点 Start Server。
 
     /// <summary>
-    /// 供命令行 -executeMethod 调用。只登记延迟启动并立即返回，不阻塞主线程。
+    /// 供命令行 -executeMethod 调用。只登记延迟启动并立即返回，约 10 秒后再启动 MCP，不阻塞主线程。
     /// </summary>
     public static void StartUnityMcpServerListening()
     {
