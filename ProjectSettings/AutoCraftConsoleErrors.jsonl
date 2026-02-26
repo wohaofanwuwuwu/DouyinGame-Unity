@@ -1,1 +1,26 @@
 ﻿{"message":"MCP-FOR-UNITY: connection fail. Server at http://127.0.0.1:9080 did not become reachable within 45s. Check that the server URL is correct and uvx process is running (e.g. port 9080).","stackTrace":"UnityEngine.Debug:LogError (object)\nUnityMcpCommandLineBootstrap/<>c__DisplayClass7_0:<DoStartMCP>g__OnUpdateBridge|0 () (at Assets/Editor/UnityMcpCommandLineBootstrap.cs:88)\nUnityEditor.EditorApplication:Internal_CallUpdateFunctions ()\n","type":"Error","time":"2026-02-26 14:00:38"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:04:23"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:04:23"}
+{"message":"ArgumentException: Arial.ttf is no longer a valid built in font. Please use LegacyRuntime.ttf","stackTrace":"UnityEngine.Resources.GetBuiltinResource[T] (System.String path) (at <f68865d630f84dbe83e4490ea2afd98a>:0)\nDouyinRugbyBootstrap.Start () (at Assets/Scripts/DouyinRugbyBootstrap.cs:75)\n","type":"Exception","time":"2026-02-26 15:04:23"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:05:04"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:05:21"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:06:45"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:06:45"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:07:30"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:09:01"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:09:01"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:10:16"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:10:16"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:10:21"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:10:21"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:11:59"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:11:59"}
+{"message":"Assets\\Scripts\\DouyinRugbyBootstrap.cs(492,25): error CS0103: The name '_joystick' does not exist in the current context","stackTrace":"","type":"Error","time":"2026-02-26 15:19:33"}
+{"message":"Assets\\Scripts\\DouyinRugbyBootstrap.cs(492,45): error CS0103: The name '_joystick' does not exist in the current context","stackTrace":"","type":"Error","time":"2026-02-26 15:19:33"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:20:17"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:20:17"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:20:38"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:21:13"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:21:13"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:21:23"}
+{"message":"Caller must complete domain reload","stackTrace":"","type":"Assert","time":"2026-02-26 15:21:24"}
