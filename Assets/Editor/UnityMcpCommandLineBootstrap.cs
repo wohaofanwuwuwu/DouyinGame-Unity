@@ -2,7 +2,9 @@
 using System;
 using System.IO;
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Text;
 using MCPForUnity.Editor.Helpers;
 using MCPForUnity.Editor.Services;
 using UnityEditor;
@@ -10,12 +12,13 @@ using UnityEngine;
 
 public static class UnityMcpCommandLineBootstrap
 {
-    const int HttpPort = 9080;
-    const string BaseUrl = "http://localhost:9080";
+    const int DefaultHttpPort = 9080;
+    const string DefaultHttpHost = "127.0.0.1";
+    const string BootstrapVersion = "autocraft-bootstrap-v2";
     /// <summary>登记后等待多少秒再启动 MCP，避免卡在 "Finish Loading Project" 或启动界面</summary>
-    const double WaitSecondsBeforeStart = 10.0;
+    const double WaitSecondsBeforeStart = 8.0;
     /// <summary>HTTP 进程启动后最多等多少秒直到可连接再建 Session，避免 "connection fail. Check that the server URL is correct"</summary>
-    const double WaitSecondsBeforeBridge = 15.0;
+    const double WaitSecondsBeforeBridge = 45.0;
 
     // 不再用 [InitializeOnLoadMethod]，避免加载阶段执行任何代码导致卡在启动界面。
     // 需要自动启动时请用命令行带 -executeMethod；或打开项目后菜单 Window > MCP for Unity 里点 Start Server。
@@ -25,6 +28,7 @@ public static class UnityMcpCommandLineBootstrap
     /// </summary>
     public static void StartUnityMcpServerListening()
     {
+        UnityEngine.Debug.Log("MCP-FOR-UNITY: bootstrap version=" + BootstrapVersion);
         EditorApplication.delayCall += ScheduleMCPStart;
     }
 
@@ -49,15 +53,25 @@ public static class UnityMcpCommandLineBootstrap
     static void DoStartMCP()
     {
         EditorApplication.delayCall -= DoStartMCP;
+        int httpPort = ResolveHttpPort();
+        string httpHost = ResolveHttpHost();
+        string baseUrl = BuildBaseUrl(httpHost, httpPort);
+        UnityEngine.Debug.Log("MCP-FOR-UNITY: resolved host=" + httpHost + " port=" + httpPort + " baseUrl=" + baseUrl);
+        if (IsPortOccupied(httpHost, httpPort))
+        {
+            UnityEngine.Debug.LogWarning("MCP-FOR-UNITY: port appears occupied before startup: " + httpHost + ":" + httpPort + ". Another process may already be listening.");
+        }
         var config = EditorConfigurationCache.Instance;
         config.SetUseHttpTransport(true);
         config.SetHttpTransportScope("local");
-        HttpEndpointUtility.SaveLocalBaseUrl(BaseUrl);
+        HttpEndpointUtility.SaveLocalBaseUrl(baseUrl);
 
-        bool serverStarted = StartLocalHttpServerHeadless();
-        if (!serverStarted && !MCPServiceLocator.Server.IsLocalHttpServerReachable())
+        bool serverStarted = StartLocalHttpServerHeadless(httpPort);
+        bool reachableNow = MCPServiceLocator.Server.IsLocalHttpServerReachable();
+        UnityEngine.Debug.Log("MCP-FOR-UNITY: after spawn serverStarted=" + serverStarted + " reachableNow=" + reachableNow);
+        if (!serverStarted && !reachableNow)
         {
-            UnityEngine.Debug.LogError("MCP-FOR-UNITY: Failed to start server at " + BaseUrl + ". Check that uv/uvx is installed and port " + HttpPort + " is free.");
+            UnityEngine.Debug.LogError("MCP-FOR-UNITY: Failed to start server at " + baseUrl + ". Check that uv/uvx is installed and port " + httpPort + " is free.");
             return;
         }
 
@@ -69,15 +83,19 @@ public static class UnityMcpCommandLineBootstrap
             if (reachable)
             {
                 EditorApplication.update -= OnUpdateBridge;
-                UnityEngine.Debug.Log("MCP HTTP server reachable at " + BaseUrl + ", starting Bridge (session)...");
+                UnityEngine.Debug.Log("MCP HTTP server reachable at " + baseUrl + ", starting Bridge (session)...");
                 EditorApplication.delayCall += DoStartBridge;
                 return;
             }
             if (elapsed >= WaitSecondsBeforeBridge)
             {
                 EditorApplication.update -= OnUpdateBridge;
-                UnityEngine.Debug.LogError("MCP-FOR-UNITY: connection fail. Server at " + BaseUrl + " did not become reachable within " + WaitSecondsBeforeBridge + "s. Check that the server URL is correct and uvx process is running (e.g. port " + HttpPort + ").");
+                UnityEngine.Debug.LogError("MCP-FOR-UNITY: connection fail. Server at " + baseUrl + " did not become reachable within " + WaitSecondsBeforeBridge + "s. Check that the server URL is correct and uvx process is running (e.g. port " + httpPort + ").");
                 return;
+            }
+            if ((int)elapsed % 5 == 0)
+            {
+                UnityEngine.Debug.Log("MCP-FOR-UNITY: waiting server reachability... elapsed=" + elapsed.ToString("F1") + "s");
             }
         }
         EditorApplication.update += OnUpdateBridge;
@@ -104,12 +122,12 @@ public static class UnityMcpCommandLineBootstrap
                 if (!result)
                     UnityEngine.Debug.LogWarning("MCP HTTP server is up but Bridge (session) failed to start. Cursor may show 'Unity session not available'.");
                 else
-                    UnityEngine.Debug.Log("Unity MCP server and session started at " + BaseUrl + "/mcp (no need to click Start Session).");
+                    UnityEngine.Debug.Log("Unity MCP server and session started at " + HttpEndpointUtility.GetLocalBaseUrl() + "/mcp (no need to click Start Session).");
             };
         });
     }
 
-    static bool StartLocalHttpServerHeadless()
+    static bool StartLocalHttpServerHeadless(int httpPort)
     {
         if (!MCPServiceLocator.Server.TryGetLocalHttpServerCommand(out string displayCommand, out string error))
         {
@@ -119,15 +137,23 @@ public static class UnityMcpCommandLineBootstrap
 
         string projectDir = Path.GetDirectoryName(Application.dataPath);
         string pidDir = Path.Combine(projectDir, "Library", "MCPForUnity", "RunState");
-        string pidFile = Path.Combine(pidDir, "mcp_http_" + HttpPort + ".pid");
+        string pidFile = Path.Combine(pidDir, "mcp_http_" + httpPort + ".pid");
         string instanceToken = Guid.NewGuid().ToString("N");
         string quotedPid = "\"" + pidFile.Replace("\"", "\\\"") + "\"";
         string fullCommand = displayCommand + " --pidfile " + quotedPid + " --unity-instance-token " + instanceToken;
+        UnityEngine.Debug.Log("MCP-FOR-UNITY: start command = " + fullCommand);
 
         try
         {
             if (!Directory.Exists(pidDir))
                 Directory.CreateDirectory(pidDir);
+            string launcherScript = Path.Combine(pidDir, "start_mcp_http_" + httpPort + ".cmd");
+            File.WriteAllText(
+                launcherScript,
+                "@echo off\r\n" + fullCommand + "\r\n",
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
+            );
+            UnityEngine.Debug.Log("MCP-FOR-UNITY: launcher script = " + launcherScript);
 
             var startInfo = new ProcessStartInfo
             {
@@ -139,7 +165,7 @@ public static class UnityMcpCommandLineBootstrap
             if (Application.platform == RuntimePlatform.WindowsEditor)
             {
                 startInfo.FileName = "cmd.exe";
-                startInfo.Arguments = "/c \"" + fullCommand.Replace("\"", "\\\"") + "\"";
+                startInfo.Arguments = "/d /c \"" + launcherScript + "\"";
             }
             else
             {
@@ -147,7 +173,13 @@ public static class UnityMcpCommandLineBootstrap
                 startInfo.Arguments = "-c " + "\"" + fullCommand.Replace("\"", "\\\"") + "\"";
             }
 
-            Process.Start(startInfo);
+            var process = Process.Start(startInfo);
+            if (process == null)
+            {
+                UnityEngine.Debug.LogError("MCP-FOR-UNITY: failed to spawn MCP process (Process.Start returned null).");
+                return false;
+            }
+            UnityEngine.Debug.Log("MCP-FOR-UNITY: launcher process started pid=" + process.Id);
             return true;
         }
         catch (Exception ex)
@@ -156,6 +188,54 @@ public static class UnityMcpCommandLineBootstrap
             return false;
         }
     }
+
+    static int ResolveHttpPort()
+    {
+        string arg = GetCommandLineArg("-mcpPort");
+        if (!string.IsNullOrEmpty(arg) && int.TryParse(arg, out int parsed) && parsed > 0)
+            return parsed;
+        return DefaultHttpPort;
+    }
+
+    static string ResolveHttpHost()
+    {
+        string arg = GetCommandLineArg("-mcpHost");
+        if (!string.IsNullOrEmpty(arg))
+            return arg.Trim();
+        return DefaultHttpHost;
+    }
+
+    static string BuildBaseUrl(string host, int port)
+    {
+        string normalizedHost = string.IsNullOrWhiteSpace(host) ? DefaultHttpHost : host.Trim();
+        return "http://" + normalizedHost + ":" + port;
+    }
+
+    static string GetCommandLineArg(string key)
+    {
+        string[] args = Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (!string.Equals(args[i], key, StringComparison.OrdinalIgnoreCase))
+                continue;
+            return args[i + 1];
+        }
+        return string.Empty;
+    }
+
+    static bool IsPortOccupied(string host, int port)
+    {
+        try
+        {
+            using var client = new TcpClient();
+            var connectTask = client.ConnectAsync(host, port);
+            bool ok = connectTask.Wait(TimeSpan.FromMilliseconds(300));
+            return ok && client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 #endif
-
