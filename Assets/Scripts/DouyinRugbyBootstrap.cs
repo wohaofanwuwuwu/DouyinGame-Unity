@@ -1022,6 +1022,37 @@ public class DouyinRugbyBootstrap : MonoBehaviour
         rect.sizeDelta = size;
     }
 
+    private static Sprite _circleSpriteCache;
+
+    private static Sprite GetCircleSprite()
+    {
+        if (_circleSpriteCache != null)
+            return _circleSpriteCache;
+        const int size = 128;
+        float radius = size * 0.5f;
+        float center = radius;
+        Texture2D tex = new Texture2D(size, size);
+        Color[] pixels = new Color[size * size];
+        float rOuter = radius;
+        float rInner = radius - 1.2f;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - center + 0.5f;
+                float dy = y - center + 0.5f;
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                float alpha = dist <= rInner ? 1f : (dist <= rOuter ? Mathf.Clamp01(1f - (dist - rInner) / 1.2f) : 0f);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        }
+        tex.SetPixels(pixels);
+        tex.Apply();
+        tex.filterMode = FilterMode.Bilinear;
+        _circleSpriteCache = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+        return _circleSpriteCache;
+    }
+
     private static void EnsureEventSystem()
     {
         EventSystem existing = FindObjectOfType<EventSystem>();
@@ -1802,7 +1833,11 @@ public class DouyinRugbyBootstrap : MonoBehaviour
         SetRect(joystickRect, anchorMin, anchorMax, anchoredPos, size);
 
         Image joyBg = joystickRoot.AddComponent<Image>();
+        joyBg.sprite = GetCircleSprite();
         joyBg.color = new Color(1f, 1f, 1f, 0.20f);
+        joyBg.type = Image.Type.Simple;
+        joyBg.preserveAspect = true;
+        joyBg.raycastTarget = true;
 
         GameObject handleGo = new GameObject("Handle", typeof(RectTransform), typeof(Image));
         handleGo.transform.SetParent(joystickRoot.transform, false);
@@ -1810,7 +1845,11 @@ public class DouyinRugbyBootstrap : MonoBehaviour
         handleRect.sizeDelta = new Vector2(84f, 84f);
         handleRect.anchoredPosition = Vector2.zero;
         Image handleImage = handleGo.GetComponent<Image>();
+        handleImage.sprite = GetCircleSprite();
         handleImage.color = new Color(1f, 1f, 1f, 0.55f);
+        handleImage.type = Image.Type.Simple;
+        handleImage.preserveAspect = true;
+        handleImage.raycastTarget = false;
 
         SimpleJoystick joystick = joystickRoot.AddComponent<SimpleJoystick>();
         joystick.Initialize(joystickRect, handleRect, 68f);
